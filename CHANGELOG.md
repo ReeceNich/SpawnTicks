@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Added `authors`, `displayURL`, and `issueTrackerURL` metadata to `META-INF/neoforge.mods.toml`.
+
 ## [1.0.0] - 2026-11-12
 
 ### Added
