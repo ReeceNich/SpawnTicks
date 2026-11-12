@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify tag matches version.properties
+        id: version
+        shell: bash
+        run: |
+          PROP_VERSION="$(grep -E '^mod_version=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')"
+          MC_VERSION="$(grep -E '^minecraft_version=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')"
+          if [ -z "$PROP_VERSION" ] || [ -z "$MC_VERSION" ]; then
+            echo "ERROR: mod_version or minecraft_version missing from version.properties"
+            exit 1
+          fi
+          EXPECTED_MULTI_TAG="v${PROP_VERSION}+mc${MC_VERSION}"
+          EXPECTED_SIMPLE_TAG="v${PROP_VERSION}"
+          if [ "$GITHUB_REF_NAME" != "$EXPECTED_MULTI_TAG" ] && [ "$GITHUB_REF_NAME" != "$EXPECTED_SIMPLE_TAG" ]; then
+            echo "ERROR: Git tag ($GITHUB_REF_NAME) must match $EXPECTED_MULTI_TAG (or $EXPECTED_SIMPLE_TAG)."
+            exit 1
+          fi
+          echo "version=$PROP_VERSION" >> "$GITHUB_OUTPUT"
+          echo "mc_version=$MC_VERSION" >> "$GITHUB_OUTPUT"
+          echo "jar_path=build/libs/spawnticks-${PROP_VERSION}+mc${MC_VERSION}.jar" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and run NeoForge GameTests
+        run: ./gradlew build runGameTestServer --no-daemon
+
+      - name: Extract changelog notes
+        shell: bash
+        run: |
+          python3 -c '
+          import pathlib, sys
+          ver = sys.argv[1]
+          lines = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+          out, inside = [], False
+          prefix = f"## [{ver}]"
+          for line in lines:
+              if line.startswith(prefix):
+                  inside = True
+                  continue
+              if inside and line.startswith("## ["):
+                  break
+              if inside:
+                  out.append(line)
+          pathlib.Path("release_notes.md").write_text("\n".join(out).strip(), encoding="utf-8")
+          ' "${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "SpawnTicks v${{ steps.version.outputs.version }} (MC ${{ steps.version.outputs.mc_version }})"
+          body_path: release_notes.md
+          generate_release_notes: true
+          files: |
+            ${{ steps.version.outputs.jar_path }}
+
+      # Future Modrinth publishing hook (disabled until ready):
+      # 1. Add MODRINTH_TOKEN repository secret in GitHub Settings -> Secrets and variables -> Actions.
+      # 2. Set your Modrinth project ID/slug and uncomment:
+      # - name: Publish to Modrinth
+      #   uses: modrinth/action-modrinth@v1
+      #   with:
+      #     api_token: ${{ secrets.MODRINTH_TOKEN }}
+      #     project_id: <your-modrinth-project-id>
+      #     version_number: "${{ steps.version.outputs.version }}+mc${{ steps.version.outputs.mc_version }}"
+      #     version_title: "SpawnTicks v${{ steps.version.outputs.version }} (NeoForge ${{ steps.version.outputs.mc_version }})"
+      #     changelog: ${{ ... }}
+      #     files: ${{ steps.version.outputs.jar_path }}
+      #     loaders: '["neoforge"]'
+      #     game_versions: '["${{ steps.version.outputs.mc_version }}"]'
+      #     version_type: release
