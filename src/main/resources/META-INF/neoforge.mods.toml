@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mixins]]
+config="spawnticks.mixins.json"
+
+[[mods]]
+modId="spawnticks"
+version="1.0.0"
+displayName="Spawn Ticks Backport (1.21.5 Behavior)"
+description="Enables random block ticks (crop growth) in entity-ticking spawn chunks when no players are online or nearby."
+displayTest="IGNORE_ALL_VERSION"
+
+[[dependencies.spawnticks]]
+modId="neoforge"
+type="required"
+versionRange="[21.1,)"
+ordering="NONE"
+side="SERVER"
+
+[[dependencies.spawnticks]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1,1.21.2)"
+ordering="NONE"
+side="SERVER"
