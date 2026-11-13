@@ -370,7 +370,7 @@ public class SpawnTicksGameTests {
         }
     }
 
-    @GameTest(template = "empty", batch = "border_exclusion", timeoutTicks = 200)
+    @GameTest(template = "empty", batch = "border_exclusion", timeoutTicks = 300)
     public static void outerBorderBlockTickingChunkSkipsUnattendedRandomTicks(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         MinecraftServer server = level.getServer();
@@ -380,8 +380,12 @@ public class SpawnTicksGameTests {
         ChunkPos borderChunk = new ChunkPos(baseChunk.x + 128, baseChunk.z + 128);
         BlockPos setupOrigin = new BlockPos(borderChunk.getMinBlockX(), 200, borderChunk.getMinBlockZ());
 
-        // Pre-generate/load FULL status synchronously so radius-1 promotion does not race async worldgen on CI.
-        level.getChunk(borderChunk.x, borderChunk.z);
+        // ChunkMap#prepareTickingChunk requires the entire 3x3 ring at FULL status before promoting borderChunk to BLOCK_TICKING.
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                level.getChunk(borderChunk.x + dx, borderChunk.z + dz);
+            }
+        }
 
         TestScope scope = new TestScope(server, level)
             .saveEnabled()
@@ -398,6 +402,9 @@ public class SpawnTicksGameTests {
         helper.onEachTick(() -> scope.runGuarded(() -> {
             if (!setupDone[0]) {
                 loadTicks[0]++;
+                for (int i = 0; i < 64 && level.getChunkSource().pollTask(); i++) {
+                    // Drain pending main-thread chunk promotion callbacks before checking BLOCK_TICKING readiness
+                }
                 ChunkHolder holder = level.getChunkSource().chunkMap.getVisibleChunkIfPresent(borderChunk.toLong());
                 if (holder != null && holder.getTickingChunk() != null && level.shouldTickBlocksAt(borderChunk.toLong())) {
                     helper.assertTrue(
@@ -406,8 +413,8 @@ public class SpawnTicksGameTests {
                     );
                     placeEnclosedSugarCane(level, setupOrigin, scope);
                     setupDone[0] = true;
-                } else if (loadTicks[0] >= 120) {
-                    scope.fail(helper, "Level-32 border chunk failed to reach BLOCK_TICKING state within 120 ticks");
+                } else if (loadTicks[0] >= 200) {
+                    scope.fail(helper, "Level-32 border chunk failed to reach BLOCK_TICKING state within 200 ticks");
                 }
                 return;
             }
