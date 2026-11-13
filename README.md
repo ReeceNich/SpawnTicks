@@ -47,7 +47,7 @@ enabled = true
 
 ## Installation
 
-1. Download `spawnticks-1.0.0+mc1.21.1.jar` and place it in your **NeoForge 1.21.1 server's `mods/` folder**.
+1. Download `spawnticks-<version>+mc<mc_version>.jar` from [Releases](https://github.com/ReeceNich/SpawnTicks/releases) and place it in your **NeoForge 1.21.1 server's `mods/` folder**.
 2. Restart the server (no client installation required).
 3. *(Optional)* Run `/spawnticks status` to confirm your active spawn chunk radius and `/forceload` counts.
 
@@ -73,7 +73,7 @@ On Windows PowerShell:
 .\gradlew.bat build
 ```
 
-The compiled mod will be generated at `build/libs/spawnticks-1.0.0+mc1.21.1.jar`.
+The compiled mod will be generated at `build/libs/spawnticks-<version>+mc<mc_version>.jar`.
 
 ---
 
