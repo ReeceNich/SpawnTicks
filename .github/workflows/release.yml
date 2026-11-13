@@ -77,18 +77,16 @@ jobs:
           files: |
             ${{ steps.version.outputs.jar_path }}
 
-      # Future Modrinth publishing hook (disabled until ready):
-      # 1. Add MODRINTH_TOKEN repository secret in GitHub Settings -> Secrets and variables -> Actions.
-      # 2. Set your Modrinth project ID/slug and uncomment:
-      # - name: Publish to Modrinth
-      #   uses: modrinth/action-modrinth@v1
-      #   with:
-      #     api_token: ${{ secrets.MODRINTH_TOKEN }}
-      #     project_id: <your-modrinth-project-id>
-      #     version_number: "${{ steps.version.outputs.version }}+mc${{ steps.version.outputs.mc_version }}"
-      #     version_title: "SpawnTicks v${{ steps.version.outputs.version }} (NeoForge ${{ steps.version.outputs.mc_version }})"
-      #     changelog: ${{ ... }}
-      #     files: ${{ steps.version.outputs.jar_path }}
-      #     loaders: '["neoforge"]'
-      #     game_versions: '["${{ steps.version.outputs.mc_version }}"]'
-      #     version_type: release
+      - name: Publish to Modrinth
+        uses: Kir-Antipov/mc-publish@v3
+        with:
+          modrinth-id: ${{ vars.MODRINTH_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-featured: true
+          name: "SpawnTicks v${{ steps.version.outputs.version }} (NeoForge ${{ steps.version.outputs.mc_version }})"
+          version: "${{ steps.version.outputs.version }}+mc${{ steps.version.outputs.mc_version }}"
+          version-type: release
+          changelog-file: release_notes.md
+          loaders: neoforge
+          game-versions: "${{ steps.version.outputs.mc_version }}"
+          files: "${{ steps.version.outputs.jar_path }}"

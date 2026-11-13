@@ -7,8 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-13
+
+### Added
+- Automated Modrinth release publishing via `Kir-Antipov/mc-publish@v3` in `.github/workflows/release.yml` alongside GitHub Releases.
+- Graceful Mixin conflict detection (`SpawnTicksMixinPlugin` and `SpawnTicksRuntimeState`) that logs an `[ERROR]` naming detected conflicting mods/mixins and safely disables only the affected hook(s) instead of crashing startup when chunk-overhaul mods replace `tickChunks` or Overworld empty-world keep-awake hooks.
+- `/spawnticks status` now reports Mixin hook health (including `PARTIAL (KEEP-AWAKE CONFLICT)`, `DISABLED (KEEP-AWAKE CONFLICT)`, and `INACTIVE (MIXIN CONFLICT)` badges with both conflict attribution and failure details), Overworld empty-world keep-awake state, and deduplicated NeoForge modded forced-chunk counts (`ForcedChunksSavedData`) alongside vanilla `/forceload` counts.
+- Spark/JFR `ProfilerFiller` `"tickBlocks"` and `"randomTick"` sections around unattended random block and fluid ticks.
+- Expanded automated NeoForge GameTests (11 tests total) covering Mixin hook health, `emptyTime` keep-awake resets, `/tick freeze` pause safety, paused empty-dimension skip safety, unattended fluid random ticks, `forceTicks = true` region tickets, outer level-32 border-chunk exclusion, and partial/full conflict status reporting.
+
 ### Changed
 - Added `authors`, `displayURL`, and `issueTrackerURL` metadata to `META-INF/neoforge.mods.toml`.
+- Set `ServerChunkCacheMixin` to Mixin `priority = 1500`, removed `@Local`/`@Share` per-tick wrapper allocation in favor of `chunkMap.getVisibleChunkIfPresent(...)`, and cached `RULE_RANDOMTICKING` and empty-dimension skip checks once per game tick with fast early returns.
+- Tightened Mixin conflict, bridge-method, and target-handler verification and cached mod JAR attribution lookups in `SpawnTicksMixinPlugin` and `SpawnTicksRuntimeState`; decoupled Overworld keep-awake conflicts from `/forceload` and chunk-loader random ticking.
+- Ordered `ServerLevelMixin` guards to check `level.players().isEmpty()` before reading gamerules.
+- Expanded `README.md` compatibility notes and `/spawnticks status` documentation, and updated `AGENTS.md` Mixin safety conventions.
+
+### Fixed
+- Prevented unintended item accumulation in paused empty dimensions (`emptyTime >= 300`, such as temporary non-`ForcedChunkManager` tickets or `spawnChunkRadius = 0`) by skipping unattended random ticks whenever dimension entities are paused.
+- Fixed `/spawnticks status` conflict details formatting and false-healthy Mixin state edge cases when hooks fail to merge or only one hook is affected.
 
 ## [1.0.0] - 2026-11-12
 

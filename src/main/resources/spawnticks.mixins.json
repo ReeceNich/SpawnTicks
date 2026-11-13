@@ -3,6 +3,7 @@
   "minVersion": "0.8",
   "package": "uk.co.reecenicholls.spawnticks.mixin",
   "compatibilityLevel": "JAVA_21",
+  "plugin": "uk.co.reecenicholls.spawnticks.runtime.SpawnTicksMixinPlugin",
   "mixins": [
     "ServerChunkCacheMixin",
     "ServerLevelMixin"

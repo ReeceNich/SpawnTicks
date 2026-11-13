@@ -7,8 +7,10 @@ import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import uk.co.reecenicholls.spawnticks.command.SpawnTicksCommand;
 import uk.co.reecenicholls.spawnticks.config.SpawnTicksConfig;
+import uk.co.reecenicholls.spawnticks.runtime.SpawnTicksRuntimeState;
 
 @Mod(SpawnTicksMod.MOD_ID)
 public class SpawnTicksMod {
@@ -20,7 +22,12 @@ public class SpawnTicksMod {
         modEventBus.addListener(ModConfigEvent.Loading.class, SpawnTicksConfig::onConfigLoadOrReload);
         modEventBus.addListener(ModConfigEvent.Reloading.class, SpawnTicksConfig::onConfigLoadOrReload);
         modEventBus.addListener(ModConfigEvent.Unloading.class, SpawnTicksConfig::onConfigUnload);
+        NeoForge.EVENT_BUS.addListener(this::onServerStarting);
         NeoForge.EVENT_BUS.addListener(this::registerCommands);
+    }
+
+    private void onServerStarting(ServerStartingEvent event) {
+        SpawnTicksRuntimeState.verifyRuntimeIntegrity();
     }
 
     private void registerCommands(RegisterCommandsEvent event) {

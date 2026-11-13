@@ -31,7 +31,7 @@ SpawnTicks hooks into chunk ticking to:
 
 Requires **OP level 2** or server console access:
 
-- `/spawnticks status` — Displays enabled state, Overworld spawn coordinates and chunk, `spawnChunkRadius`, active entity-ticking spawn area (e.g., `3x3`), `/forceload` chunk counts, and `randomTickSpeed`.
+- `/spawnticks status` — Displays active/conflict status, Mixin hook health, Overworld keep-awake state, world spawn coordinates and chunk, `spawnChunkRadius`, active entity-ticking spawn area (e.g., `3x3`), vanilla `/forceload` and NeoForge modded forced-chunk counts, and `randomTickSpeed`.
 - `/spawnticks enable` — Enables unattended random block ticking and saves the setting.
 - `/spawnticks disable` — Disables unattended random block ticking and saves the setting.
 
@@ -53,6 +53,13 @@ enabled = true
 
 ### Compatibility Notes
 - **Minecraft / Loader**: Minecraft `1.21.1`, NeoForge `21.1+` (built against `21.1.72`), Java `21`.
+- **Vanilla & Modded Clients**: Unmodded and modded `1.21.1` clients can connect freely without installing SpawnTicks.
+- **Content, Machine & Chunk-Loader Mods (Create, FTB Chunks, Chunk Loaders)**: Compatible out of the box. Blocks loaded via NeoForge `ForcedChunkManager` tickets receive unattended random ticks cleanly, while machines and entities keep working without triggering unintended item pileups in paused empty dimensions (`emptyTime >= 300`).
+- **Optimization Mods & Profilers (EntityCulling, Lithium, ServerCore, Does It Tick?, Spark/JFR)**:
+  - **EntityCulling** is client/render-side and unaffected.
+  - **Lithium**, **ServerCore**, and **Does It Tick?** remain compatible; SpawnTicks hooks into chunk ticking at Mixin `priority = 1500` and preserves standard `"tickBlocks"` / `"randomTick"` profiler sections for Spark and JFR.
+  - **Ksyxis**: Note that Ksyxis sets Overworld `spawnChunkRadius` to `0`, which disables vanilla spawn chunks and Overworld spawn-chunk keep-awake; chunks force-loaded with `/forceload` or NeoForge `ForcedChunkManager` chunk loaders keep their dimension awake and continue to receive unattended random ticks 24/7 even with `0` players online (or keep `spawnChunkRadius > 0` if you want vanilla spawn chunks kept awake).
+- **Chunk-Overhaul Mods (e.g. Moonrise)**: If another mod completely replaces `ServerChunkCache#tickChunks` or removes `shouldForceTicks`, SpawnTicks' Mixin guard detects the conflict, avoids crashing server startup, logs an error identifying the conflicting mixin/mod, disables only the affected feature(s), and reports `INACTIVE (MIXIN CONFLICT)` (or `PARTIAL (KEEP-AWAKE CONFLICT)` / `DISABLED (KEEP-AWAKE CONFLICT)` if only Overworld empty-world keep-awake is affected while `/forceload` and chunk-loader random ticking continue working) in `/spawnticks status`.
 - **AutoModpack**: If your server uses AutoModpack and it picks up server-side mods from `mods/`, add `mods/spawnticks-*.jar` to your AutoModpack server exclusion rules so clients don't download it unnecessarily.
 
 ---
