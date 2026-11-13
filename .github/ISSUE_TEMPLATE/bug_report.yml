@@ -1,0 +1,54 @@
+name: 🐛 Bug / Mod Compatibility Report
+description: Report a bug or mod conflict on NeoForge (requires /spawnticks status output or server logs)
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please note: **SpawnTicks is a solo project for NeoForge.** Requests for Fabric/Forge ports are out of scope and will be closed.
+
+  - type: checkboxes
+    id: scope_check
+    attributes:
+      label: Pre-flight Checks
+      options:
+        - label: I am running SpawnTicks on a **NeoForge** server (not Fabric/Forge) and have read the README Compatibility Notes.
+          required: true
+        - label: This is a bug or mod-compatibility report, not a loader port request.
+          required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: SpawnTicks, Minecraft & NeoForge Versions
+      description: "Example: spawnticks-1.0.1+mc1.21.1, Minecraft 1.21.1, NeoForge 21.1.72"
+      placeholder: "spawnticks-1.0.1+mc1.21.1 / MC 1.21.1 / NeoForge 21.1.x"
+    validations:
+      required: true
+
+  - type: textarea
+    id: status_output
+    attributes:
+      label: Output of `/spawnticks status`
+      description: Paste the exact output of `/spawnticks status` from in-game or the server console.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened & Steps to Reproduce
+      description: Describe the issue clearly and list any other chunk/optimization mods installed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Server Log (`logs/latest.log` or Crash Report)
+      description: Paste any `[SpawnTicks]` log lines or errors, or link to a paste (e.g. mclo.gs).
+      render: text
+    validations:
+      required: false

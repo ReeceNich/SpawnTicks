@@ -84,6 +84,17 @@ The compiled mod will be generated at `build/libs/spawnticks-<version>+mc<mc_ver
 
 ---
 
+## Project Scope & Support
+
+SpawnTicks is a solo hobby project built and shared for the community. To keep maintenance sustainable:
+
+- **Target Platform**: Built specifically for **NeoForge** on Minecraft `1.21.1` (note: vanilla Minecraft `1.21.5+` includes unattended spawn/forced-chunk random ticking natively).
+- **No Loader Ports**: There are no plans to port SpawnTicks to Fabric, Quilt, or legacy Forge. Under the [MIT License](LICENSE), you are welcome to fork or adapt the code.
+- **Bug Reports**: Genuine bug reports and mod-compatibility issues are welcome via [GitHub Issues](https://github.com/ReeceNich/SpawnTicks/issues)—please include your `/spawnticks status` output and server log (`logs/latest.log`).
+- **Modpacks**: You are free to include SpawnTicks in any modpack without asking for permission.
+
+---
+
 ## Links & License
 
 - **Source Code**: [github.com/ReeceNich/SpawnTicks](https://github.com/ReeceNich/SpawnTicks)

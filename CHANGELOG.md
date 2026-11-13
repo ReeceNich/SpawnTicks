@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Set `ServerChunkCacheMixin` to Mixin `priority = 1500`, removed `@Local`/`@Share` per-tick wrapper allocation in favor of `chunkMap.getVisibleChunkIfPresent(...)`, and cached `RULE_RANDOMTICKING` and empty-dimension skip checks once per game tick with fast early returns.
 - Tightened Mixin conflict, bridge-method, and target-handler verification and cached mod JAR attribution lookups in `SpawnTicksMixinPlugin` and `SpawnTicksRuntimeState`; decoupled Overworld keep-awake conflicts from `/forceload` and chunk-loader random ticking.
 - Ordered `ServerLevelMixin` guards to check `level.players().isEmpty()` before reading gamerules.
-- Expanded `README.md` compatibility notes and `/spawnticks status` documentation, and updated `AGENTS.md` Mixin safety conventions.
+- Expanded `README.md` compatibility notes, project scope & support expectations, and `/spawnticks status` documentation, added structured GitHub issue templates (`.github/ISSUE_TEMPLATE/`), and updated `AGENTS.md` Mixin safety conventions.
 
 ### Fixed
 - Prevented unintended item accumulation in paused empty dimensions (`emptyTime >= 300`, such as temporary non-`ForcedChunkManager` tickets or `spawnChunkRadius = 0`) by skipping unattended random ticks whenever dimension entities are paused.
