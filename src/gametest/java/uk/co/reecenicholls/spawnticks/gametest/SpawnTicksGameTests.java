@@ -11,6 +11,7 @@ import java.util.Map;
 import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
@@ -20,12 +21,19 @@ import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.TicketType;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.Difficulty;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.monster.ZombifiedPiglin;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.level.block.NetherPortalBlock;
 import net.minecraft.world.level.block.SugarCaneBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.common.world.chunk.ForcedChunkManager;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -526,7 +534,287 @@ public class SpawnTicksGameTests {
         }));
     }
 
+    @GameTest(template = "empty", batch = "nether_portal_policy", timeoutTicks = 260)
+    public static void unattendedNetherPortalBlockedByDefaultAndAllowedWhenConfigured(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        MinecraftServer server = level.getServer();
+        helper.assertTrue(level.players().isEmpty(), "GameTestServer must have 0 online players");
+
+        ChunkPos portalChunk = new ChunkPos(helper.absolutePos(BlockPos.ZERO));
+        int minX = portalChunk.getMinBlockX();
+        int minZ = portalChunk.getMinBlockZ();
+        int frameZ = minZ + 2;
+        AABB searchBox = new AABB(
+            minX - 16,
+            level.getMinBuildHeight(),
+            minZ - 16,
+            minX + 32,
+            level.getMaxBuildHeight(),
+            minZ + 32
+        );
+
+        TestScope scope = new TestScope(server, level)
+            .saveEnabled()
+            .saveBlockFilterConfig()
+            .saveDifficulty()
+            .forceChunk(portalChunk)
+            .discardEntitiesInBox(searchBox, EntityType.ZOMBIFIED_PIGLIN);
+        GameRules.IntegerValue randomTickRule = scope.saveIntRule(GameRules.RULE_RANDOMTICKING);
+        GameRules.BooleanValue mobSpawningRule = scope.saveBooleanRule(GameRules.RULE_DOMOBSPAWNING);
+
+        // Clear any stray piglins before starting and build a 12x12 portal interior inside section Y=192..207.
+        for (ZombifiedPiglin existing : level.getEntities(EntityType.ZOMBIFIED_PIGLIN, searchBox, e -> true)) {
+            existing.discard();
+        }
+        buildUnattendedNetherPortalFrame(level, minX + 1, 193, frameZ, scope);
+
+        SpawnTicksConfig.setEnabled(true);
+        SpawnTicksConfig.setAllowUnattendedNetherPortalTicks(false);
+        SpawnTicksConfig.setExcludedBlocks(List.of());
+        server.setDifficulty(Difficulty.HARD, true);
+        mobSpawningRule.set(true, server);
+        randomTickRule.set(4096, server);
+
+        final boolean[] allowPhase = {false};
+        final int[] blockedTicks = {0};
+        final int[] allowedTicks = {0};
+
+        helper.onEachTick(() -> scope.runGuarded(() -> {
+            List<ZombifiedPiglin> piglins = level.getEntities(EntityType.ZOMBIFIED_PIGLIN, searchBox, e -> true);
+            if (!allowPhase[0]) {
+                helper.assertTrue(
+                    piglins.isEmpty(),
+                    "Expected 0 unattended Zombified Piglins while allowUnattendedNetherPortalTicks=false, found " + piglins.size()
+                );
+                blockedTicks[0]++;
+                if (blockedTicks[0] >= 40) {
+                    allowPhase[0] = true;
+                    SpawnTicksConfig.setAllowUnattendedNetherPortalTicks(true);
+                }
+                return;
+            }
+
+            allowedTicks[0]++;
+            if (!piglins.isEmpty()) {
+                scope.succeed(helper);
+            } else if (allowedTicks[0] >= 160) {
+                scope.fail(
+                    helper,
+                    "Expected at least 1 Zombified Piglin to spawn within 160 ticks when allowUnattendedNetherPortalTicks=true"
+                );
+            }
+        }));
+    }
+
+    @GameTest(template = "empty", batch = "block_exclusions", timeoutTicks = 300)
+    public static void excludedBlocksSkipExactIdTagWildcardAndFluidTicks(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        MinecraftServer server = level.getServer();
+        helper.assertTrue(level.players().isEmpty(), "GameTestServer must have 0 online players");
+
+        ChunkPos testChunk = new ChunkPos(helper.absolutePos(BlockPos.ZERO));
+        BlockPos base = new BlockPos(testChunk.getMinBlockX(), 200, testChunk.getMinBlockZ());
+        AABB itemCleanupBox = new AABB(
+            testChunk.getMinBlockX(),
+            196,
+            testChunk.getMinBlockZ(),
+            testChunk.getMaxBlockX() + 1,
+            212,
+            testChunk.getMaxBlockZ() + 1
+        );
+
+        TestScope scope = new TestScope(server, level)
+            .saveEnabled()
+            .saveBlockFilterConfig()
+            .forceChunk(testChunk)
+            .discardEntitiesInBox(itemCleanupBox, EntityType.ITEM);
+        GameRules.IntegerValue randomTickRule = scope.saveIntRule(GameRules.RULE_RANDOMTICKING);
+        GameRules.BooleanValue fireTickRule = scope.saveBooleanRule(GameRules.RULE_DOFIRETICK);
+
+        placeEnclosedSugarCane(level, base, scope);
+        BlockPos canePos = base.offset(CANE_REL);
+        BlockPos grownPos = base.offset(GROWN_REL);
+
+        BlockPos leavesPos = base.offset(6, 2, 2);
+        for (Direction dir : Direction.values()) {
+            setBlockWithOptionalRecord(level, leavesPos.relative(dir), Blocks.AIR.defaultBlockState(), scope);
+        }
+        setBlockWithOptionalRecord(
+            level,
+            leavesPos,
+            Blocks.OAK_LEAVES.defaultBlockState()
+                .setValue(LeavesBlock.PERSISTENT, false)
+                .setValue(LeavesBlock.DISTANCE, 7),
+            scope
+        );
+
+        BlockPos lavaOrigin = base.offset(10, 0, 0);
+        placeEnclosedLavaWithPlanks(level, lavaOrigin, scope);
+
+        // Verify excludedBlocks takes precedence over allowUnattendedNetherPortalTicks=true.
+        SpawnTicksConfig.setAllowUnattendedNetherPortalTicks(true);
+        SpawnTicksConfig.setExcludedBlocks(List.of("minecraft:nether_portal"));
+        helper.assertTrue(
+            SpawnTicksConfig.getBlockFilter().isExcluded(Blocks.NETHER_PORTAL.defaultBlockState()),
+            "Expected excludedBlocks to override allowUnattendedNetherPortalTicks=true"
+        );
+
+        SpawnTicksConfig.setEnabled(true);
+        SpawnTicksConfig.setAllowUnattendedNetherPortalTicks(false);
+        SpawnTicksConfig.setExcludedBlocks(List.of("minecraft:sugar_cane", "#minecraft:leaves", "minecraft:lava"));
+        fireTickRule.set(true, server);
+        randomTickRule.set(2000, server);
+
+        final int[] phase = {1};
+        final int[] phaseTicks = {0};
+
+        helper.onEachTick(() -> scope.runGuarded(() -> {
+            phaseTicks[0]++;
+            if (phase[0] == 1) {
+                if (phaseTicks[0] >= 25) {
+                    assertSugarCaneUnchanged(level, canePos, grownPos, "while minecraft:sugar_cane is excluded");
+                    helper.assertTrue(
+                        level.getBlockState(leavesPos).is(Blocks.OAK_LEAVES),
+                        "Expected #minecraft:leaves exclusion to prevent oak leaves decay"
+                    );
+                    helper.assertTrue(
+                        !hasAnyFireAbovePlanks(level, lavaOrigin),
+                        "Expected minecraft:lava exclusion to prevent unattended plank ignition"
+                    );
+                    phase[0] = 2;
+                    phaseTicks[0] = 0;
+                    SpawnTicksConfig.setExcludedBlocks(List.of("minecraft:*"));
+                }
+                return;
+            }
+
+            if (phase[0] == 2) {
+                if (phaseTicks[0] >= 25) {
+                    assertSugarCaneUnchanged(level, canePos, grownPos, "while minecraft:* is excluded");
+                    helper.assertTrue(
+                        level.getBlockState(leavesPos).is(Blocks.OAK_LEAVES),
+                        "Expected minecraft:* exclusion to prevent oak leaves decay"
+                    );
+                    helper.assertTrue(
+                        !hasAnyFireAbovePlanks(level, lavaOrigin),
+                        "Expected minecraft:* exclusion to prevent unattended plank ignition"
+                    );
+                    phase[0] = 3;
+                    phaseTicks[0] = 0;
+                    fireTickRule.set(false, server);
+                    SpawnTicksConfig.setExcludedBlocks(List.of());
+                }
+                return;
+            }
+
+            if (!level.getBlockState(leavesPos).is(Blocks.OAK_LEAVES)) {
+                scope.succeed(helper);
+            } else if (phaseTicks[0] >= 60) {
+                scope.fail(helper, "Expected oak leaves to decay within 60 ticks after clearing excludedBlocks");
+            }
+        }));
+    }
+
+    @GameTest(template = "empty", batch = "exclude_commands", timeoutTicks = 40)
+    public static void commandsManagePortalToggleAndExcludedBlocks(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        MinecraftServer server = level.getServer();
+
+        try (TestScope scope = new TestScope(server, level).saveEnabled().saveBlockFilterConfig()) {
+            SpawnTicksConfig.setAllowUnattendedNetherPortalTicks(false);
+            SpawnTicksConfig.setExcludedBlocks(List.of());
+
+            executeCommand(server, "spawnticks portals allow", 1);
+            helper.assertTrue(
+                SpawnTicksConfig.isAllowUnattendedNetherPortalTicks(),
+                "Expected /spawnticks portals allow to enable portal ticks"
+            );
+            String allowedStatus = executeStatusCommand(server);
+            helper.assertTrue(
+                allowedStatus.contains("Unattended Nether Portals: Allowed"),
+                "Expected Allowed portal status in: " + allowedStatus
+            );
+
+            executeCommand(server, "spawnticks portals block", 1);
+            helper.assertTrue(
+                !SpawnTicksConfig.isAllowUnattendedNetherPortalTicks(),
+                "Expected /spawnticks portals block to disable portal ticks"
+            );
+            String blockedStatus = executeStatusCommand(server);
+            helper.assertTrue(
+                blockedStatus.contains("Unattended Nether Portals: Blocked"),
+                "Expected Blocked portal status in: " + blockedStatus
+            );
+
+            executeCommand(server, "spawnticks exclude add minecraft:ice", 1);
+            executeCommand(server, "spawnticks exclude add #minecraft:leaves", 1);
+            executeCommand(server, "spawnticks exclude add minecraft:*", 1);
+            executeCommand(server, "spawnticks exclude add ice", 1);
+            executeCommand(server, "spawnticks exclude add spawnticks:nonexistent_test_block", 1);
+            executeCommand(server, "spawnticks exclude add minecraft:oak_*", 0);
+
+            List<String> excluded = SpawnTicksConfig.getExcludedBlocks();
+            helper.assertTrue(
+                excluded.equals(List.of(
+                    "minecraft:ice",
+                    "#minecraft:leaves",
+                    "minecraft:*",
+                    "spawnticks:nonexistent_test_block"
+                )),
+                "Unexpected excludedBlocks list after add commands: " + excluded
+            );
+
+            String listOutput = executeCommand(server, "spawnticks exclude list", 1);
+            helper.assertTrue(
+                listOutput.contains("minecraft:ice")
+                    && listOutput.contains("#minecraft:leaves")
+                    && listOutput.contains("minecraft:*")
+                    && listOutput.contains("spawnticks:nonexistent_test_block"),
+                "Expected all configured entries in /spawnticks exclude list: " + listOutput
+            );
+
+            String populatedStatus = executeStatusCommand(server);
+            helper.assertTrue(
+                populatedStatus.contains("Excluded Blocks: 4 ("),
+                "Expected excluded blocks summary in status: " + populatedStatus
+            );
+
+            // Verify status notes precedence when portals=allow AND minecraft:nether_portal is excluded.
+            executeCommand(server, "spawnticks portals allow", 1);
+            executeCommand(server, "spawnticks exclude add minecraft:nether_portal", 1);
+            String overrideStatus = executeStatusCommand(server);
+            helper.assertTrue(
+                overrideStatus.contains("Unattended Nether Portals: Blocked (via excludedBlocks)"),
+                "Expected Blocked (via excludedBlocks) status in: " + overrideStatus
+            );
+
+            executeCommand(server, "spawnticks exclude remove minecraft:ice", 1);
+            helper.assertTrue(
+                !SpawnTicksConfig.getExcludedBlocks().contains("minecraft:ice"),
+                "Expected minecraft:ice to be removed"
+            );
+            executeCommand(server, "spawnticks exclude remove minecraft:not_present", 0);
+
+            executeCommand(server, "spawnticks exclude clear", 1);
+            helper.assertTrue(
+                SpawnTicksConfig.getExcludedBlocks().isEmpty(),
+                "Expected /spawnticks exclude clear to empty list"
+            );
+            String clearedStatus = executeStatusCommand(server);
+            helper.assertTrue(
+                clearedStatus.contains("Excluded Blocks: None"),
+                "Expected Excluded Blocks: None after clear: " + clearedStatus
+            );
+
+            scope.succeed(helper);
+        }
+    }
+
     private static String executeStatusCommand(MinecraftServer server) {
+        return executeCommand(server, "spawnticks status", 1);
+    }
+
+    private static String executeCommand(MinecraftServer server, String command, int expectedResult) {
         StringBuilder output = new StringBuilder();
         CommandSource capture = new CommandSource() {
             @Override
@@ -551,16 +839,70 @@ public class SpawnTicksGameTests {
         };
         try {
             int result = server.getCommands().getDispatcher().execute(
-                "spawnticks status",
+                command,
                 server.createCommandSourceStack().withSource(capture)
             );
-            if (result != 1) {
-                throw new AssertionError("Expected /spawnticks status to return 1, got " + result);
+            if (result != expectedResult) {
+                throw new AssertionError(
+                    "Expected /" + command + " to return " + expectedResult + ", got " + result + " (output: " + output + ")"
+                );
             }
         } catch (CommandSyntaxException ex) {
-            throw new AssertionError("Failed to execute /spawnticks status", ex);
+            throw new AssertionError("Failed to execute /" + command, ex);
         }
         return output.toString();
+    }
+
+    private static void buildUnattendedNetherPortalFrame(
+        ServerLevel level,
+        int startX,
+        int baseY,
+        int frameZ,
+        TestScope scope
+    ) {
+        int width = 14;
+        int height = 14;
+        BlockState obsidian = Blocks.OBSIDIAN.defaultBlockState();
+        BlockState portal = Blocks.NETHER_PORTAL.defaultBlockState().setValue(NetherPortalBlock.AXIS, Direction.Axis.X);
+        BlockState air = Blocks.AIR.defaultBlockState();
+
+        for (int dx = 0; dx < width; dx++) {
+            for (int dy = 0; dy < height; dy++) {
+                boolean border = dx == 0 || dx == width - 1 || dy == 0 || dy == height - 1;
+                setBlockWithOptionalRecord(level, new BlockPos(startX + dx, baseY + dy, frameZ - 1), air, scope);
+                setBlockWithOptionalRecord(level, new BlockPos(startX + dx, baseY + dy, frameZ + 1), air, scope);
+                setBlockWithOptionalRecord(
+                    level,
+                    new BlockPos(startX + dx, baseY + dy, frameZ),
+                    border ? obsidian : portal,
+                    scope
+                );
+            }
+        }
+    }
+
+    private static void placeEnclosedLavaWithPlanks(ServerLevel level, BlockPos origin, TestScope scope) {
+        for (int dx = 0; dx <= 2; dx++) {
+            for (int dz = 1; dz <= 3; dz++) {
+                setBlockWithOptionalRecord(level, origin.offset(dx, 0, dz), Blocks.STONE.defaultBlockState(), scope);
+                BlockState layerOne = (dx == 1 && dz == 2)
+                    ? Blocks.LAVA.defaultBlockState()
+                    : Blocks.OAK_PLANKS.defaultBlockState();
+                setBlockWithOptionalRecord(level, origin.offset(dx, 1, dz), layerOne, scope);
+                setBlockWithOptionalRecord(level, origin.offset(dx, 2, dz), Blocks.AIR.defaultBlockState(), scope);
+            }
+        }
+    }
+
+    private static boolean hasAnyFireAbovePlanks(ServerLevel level, BlockPos origin) {
+        for (int dx = 0; dx <= 2; dx++) {
+            for (int dz = 1; dz <= 3; dz++) {
+                if (level.getBlockState(origin.offset(dx, 2, dz)).is(BlockTags.FIRE)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static void placeEnclosedSugarCane(ServerLevel level, BlockPos origin, TestScope recordBlocksScope) {
@@ -621,6 +963,31 @@ public class SpawnTicksGameTests {
         private TestScope saveEnabled() {
             boolean originalEnabled = SpawnTicksConfig.isEnabled();
             this.cleanups.add(() -> SpawnTicksConfig.setEnabled(originalEnabled));
+            return this;
+        }
+
+        private TestScope saveBlockFilterConfig() {
+            boolean originalAllowPortals = SpawnTicksConfig.isAllowUnattendedNetherPortalTicks();
+            List<String> originalExcluded = List.copyOf(SpawnTicksConfig.getExcludedBlocks());
+            this.cleanups.add(() -> {
+                SpawnTicksConfig.setAllowUnattendedNetherPortalTicks(originalAllowPortals);
+                SpawnTicksConfig.setExcludedBlocks(originalExcluded);
+            });
+            return this;
+        }
+
+        private TestScope saveDifficulty() {
+            Difficulty originalDifficulty = this.server.getWorldData().getDifficulty();
+            this.cleanups.add(() -> this.server.setDifficulty(originalDifficulty, true));
+            return this;
+        }
+
+        private TestScope discardEntitiesInBox(AABB box, EntityType<?> type) {
+            this.cleanups.add(() -> {
+                for (Entity entity : this.level.getEntities(type, box, e -> true)) {
+                    entity.discard();
+                }
+            });
             return this;
         }
 

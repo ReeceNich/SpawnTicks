@@ -114,6 +114,7 @@ public abstract class ServerChunkCacheMixin {
         ProfilerFiller profiler = this.level.getProfiler();
         profiler.push("tickBlocks");
         try {
+            SpawnTicksConfig.UnattendedBlockFilter blockFilter = SpawnTicksConfig.getBlockFilter();
             ChunkPos chunkPos = chunk.getPos();
             int minX = chunkPos.getMinBlockX();
             int minZ = chunkPos.getMinBlockZ();
@@ -134,13 +135,16 @@ public abstract class ServerChunkCacheMixin {
                                 pos.getY() - minY,
                                 pos.getZ() - minZ
                             );
-                            if (state.isRandomlyTicking()) {
-                                state.randomTick(this.level, pos, this.level.random);
-                            }
-
+                            boolean blockRandomlyTicking = state.isRandomlyTicking();
                             FluidState fluidState = state.getFluidState();
-                            if (fluidState.isRandomlyTicking()) {
-                                fluidState.randomTick(this.level, pos, this.level.random);
+                            boolean fluidRandomlyTicking = fluidState.isRandomlyTicking();
+                            if ((blockRandomlyTicking || fluidRandomlyTicking) && !blockFilter.isExcluded(state)) {
+                                if (blockRandomlyTicking) {
+                                    state.randomTick(this.level, pos, this.level.random);
+                                }
+                                if (fluidRandomlyTicking) {
+                                    fluidState.randomTick(this.level, pos, this.level.random);
+                                }
                             }
                         } finally {
                             profiler.pop();
