@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-23
+
+### Added
+- `allowUnattendedNetherPortalTicks` boolean setting in `config/spawnticks-server.toml` (default: `false`) cached in an immutable `volatile` snapshot (`UnattendedBlockFilter`) to prevent unattended `NetherPortalBlock#randomTick` Zombified Piglin spawns while players are absent.
+- `excludedBlocks` list setting in `config/spawnticks-server.toml` (default: `[]`) supporting exact block IDs (`"minecraft:ice"`), block tags (`"#minecraft:leaves"`), and namespace wildcards (`"somemod:*"`), skipping both block and fluid random ticks at matched positions.
+- In-game operator subcommands `/spawnticks portals <allow|block>` and `/spawnticks exclude <add|remove|list|clear>` with live tab completion for block IDs, `#tags`, and `namespace:*` wildcards.
+- Unattended Nether Portal status and active `excludedBlocks` summary lines in `/spawnticks status`.
+- 3 new automated NeoForge GameTests (14 total) covering unattended Nether Portal blocking/allowance, `excludedBlocks` matching (`id`, `#tag`, `namespace:*`, fluid random ticks, and precedence), and the new `/spawnticks portals` & `/spawnticks exclude` commands.
+
+### Changed
+- Synchronized `SpawnTicksConfig` server config updates and reload/unload handlers with lock-free `volatile` snapshot reads in `ServerChunkCacheMixin`.
+- Updated `README.md` with unattended Nether Portal behavior, `excludedBlocks` syntax, and the new `/spawnticks portals` & `/spawnticks exclude` commands.
+
+### Fixed
+- Fixed Zombified Piglins accumulating around Overworld Nether Portals inside spawn chunks or force-loaded chunks when zero players are in the dimension (since portal `randomTick` spawns bypass `NaturalSpawner` and mobs do not despawn with no nearby players).
+
 ## [1.0.1] - 2026-11-13
 
 ### Added
