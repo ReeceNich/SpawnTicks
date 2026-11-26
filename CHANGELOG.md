@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-26
+
+### Added
+- `allowUnattendedNetherPortalTicks` config option (default: `false`) and `/spawnticks portals <allow|block>` command to control unattended Nether Portal ticking.
+- `excludedBlocks` config list and `/spawnticks exclude <add|remove|list|clear>` command (with tab completion) to exclude specific blocks (`minecraft:ice`), block tags (`#minecraft:leaves`), or whole mods (`somemod:*`) from unattended random block & fluid ticks.
+- Mod version in the `/spawnticks status` header (`[SpawnTicks v1.1.0] Status: ...`), plus Nether Portal and excluded-block status lines.
+
+### Fixed
+- Prevented Zombified Piglins from building up around Overworld Nether Portals when no players are online or nearby by blocking unattended Nether Portal random ticks by default.
+
 ## [1.0.1] - 2026-11-13
 
 ### Added

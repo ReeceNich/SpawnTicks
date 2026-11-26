@@ -8,7 +8,8 @@
 
 - **Server-Side Only**: Installed strictly on the server (`displayTest = "IGNORE_ALL_VERSION"`, `side = "SERVER"`). Vanilla and modded 1.21.1 clients can connect without installing the mod.
 - **24/7 Growth in Loaded Chunks**: Applies `randomTickSpeed` random block and fluid ticks to entity-ticking chunks (Overworld spawn chunks via `/gamerule spawnChunkRadius` and `/forceload` chunks) with no nearby players.
-- **No Unwanted Side Effects**: Only random block/fluid ticks run while unattended—vanilla skips chunk `inhabitedTime` (regional difficulty), natural mob spawning (`NaturalSpawner`), weather/lightning strikes, skeleton horse traps, and snow/ice accumulation.
+- **No Unwanted Side Effects**: Only random block/fluid ticks run while unattended—vanilla skips chunk `inhabitedTime` (regional difficulty), natural mob spawning (`NaturalSpawner`), weather/lightning strikes, skeleton horse traps, snow/ice accumulation, and unattended Nether Portal random ticks (preventing Zombified Piglin buildup when no players are in the dimension).
+- **Configurable Block Exclusions**: Skip specific block IDs, block `#tags`, or entire `namespace:*` mods during unattended random block and fluid ticking via config or commands.
 - **Zero Double-Ticking**: Chunks with a player within range use vanilla ticking normally and are never ticked twice.
 - **Respects `/tick freeze`**: Only ticks while `tickRateManager().runsNormally()` is active.
 - **Overworld Keep-Awake**: Prevents Minecraft's 300-tick (15-second) empty-world pause in the Overworld when `spawnChunkRadius > 0`.
@@ -21,7 +22,7 @@ In vanilla Minecraft 1.21.1, chunks loaded by spawn chunks or `/forceload` conti
 
 SpawnTicks hooks into chunk ticking to:
 1. Keep the Overworld ticking when 0 players are online (if `spawnChunkRadius > 0`).
-2. Run random block and fluid ticks on unattended entity-ticking chunks (`isNaturalSpawningAllowed` & `shouldTickBlocksAt`) without triggering mob spawns, weather events, or regional difficulty buildup.
+2. Run random block and fluid ticks on unattended entity-ticking chunks (`isNaturalSpawningAllowed` & `shouldTickBlocksAt`) without triggering natural mob spawns, weather events, regional difficulty buildup, or unattended Nether Portal Piglin spawns (`allowUnattendedNetherPortalTicks = false` by default, plus any `excludedBlocks` rules).
 
 > **Note on Vanilla Crop Rules:** Light-dependent crops (wheat, carrots, potatoes, etc.) still check light level (`>= 9`) in vanilla code, so underground farms need torches or sky access. Plants without light checks (sugar cane, bamboo, kelp, cactus, dripstone, copper oxidation) grow day and night as long as the chunk is ticking.
 
@@ -31,9 +32,11 @@ SpawnTicks hooks into chunk ticking to:
 
 Requires **OP level 2** or server console access:
 
-- `/spawnticks status` — Displays active/conflict status, Mixin hook health, Overworld keep-awake state, world spawn coordinates and chunk, `spawnChunkRadius`, active entity-ticking spawn area (e.g., `3x3`), vanilla `/forceload` and NeoForge modded forced-chunk counts, and `randomTickSpeed`.
+- `/spawnticks status` — Displays mod version, active/conflict status, Mixin hook health, Overworld keep-awake state, unattended Nether Portal policy, active `excludedBlocks` summary, world spawn coordinates and chunk, `spawnChunkRadius`, active entity-ticking spawn area (e.g., `3x3`), vanilla `/forceload` and NeoForge modded forced-chunk counts, and `randomTickSpeed`.
 - `/spawnticks enable` — Enables unattended random block ticking and saves the setting.
 - `/spawnticks disable` — Disables unattended random block ticking and saves the setting.
+- `/spawnticks portals <allow|block>` — Allows or blocks unattended Nether Portal random ticks (`allowUnattendedNetherPortalTicks`). Blocking prevents Zombified Piglins from accumulating at portals when nobody is in the Overworld.
+- `/spawnticks exclude <add|remove|list|clear>` — Manages `excludedBlocks` in-game with tab completion for block IDs (`minecraft:ice`), block tags (`#minecraft:leaves`), and namespace wildcards (`somemod:*`).
 
 In NeoForge 1.21.1, configuration is generated in `config/spawnticks-server.toml` (and supports optional per-world overrides if placed in `<world>/serverconfig/spawnticks-server.toml`). Edits to the active TOML file hot-reload automatically:
 
@@ -41,6 +44,11 @@ In NeoForge 1.21.1, configuration is generated in `config/spawnticks-server.toml
 # SpawnTicks server configuration
 # Whether random block ticking is enabled in entity-ticking chunks without nearby players
 enabled = true
+# Whether Nether portal blocks may receive unattended random ticks when no players are nearby
+allowUnattendedNetherPortalTicks = false
+# Additional blocks to skip during unattended random block & fluid ticking
+# Supports exact block IDs ("minecraft:ice"), block tags ("#minecraft:leaves"), and namespace wildcards ("somemod:*")
+excludedBlocks = []
 ```
 
 ---
