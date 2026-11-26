@@ -93,28 +93,14 @@ public class SpawnTicksConfig {
     /** Updates whether unattended Nether Portal random ticks are allowed and persists the setting. */
     public static void setAllowUnattendedNetherPortalTicks(boolean allow) {
         synchronized (CONFIG_LOCK) {
-            List<String> currentEntries = cachedBlockFilter.configuredEntries();
-            cachedBlockFilter = compileBlockFilter(allow, currentEntries, false);
-            if (SPEC.isLoaded()) {
-                ALLOW_UNATTENDED_NETHER_PORTAL_TICKS.set(allow);
-                SPEC.save();
-            }
+            applyAndSaveBlockFilterLocked(allow, cachedBlockFilter.configuredEntries(), true, false);
         }
     }
 
     /** Replaces the configured {@code excludedBlocks} list and persists the change. */
     public static void setExcludedBlocks(List<String> entries) {
         synchronized (CONFIG_LOCK) {
-            UnattendedBlockFilter compiled = compileBlockFilter(
-                cachedBlockFilter.allowNetherPortalTicks(),
-                entries,
-                false
-            );
-            cachedBlockFilter = compiled;
-            if (SPEC.isLoaded()) {
-                EXCLUDED_BLOCKS.set(new ArrayList<>(compiled.configuredEntries()));
-                SPEC.save();
-            }
+            applyAndSaveBlockFilterLocked(cachedBlockFilter.allowNetherPortalTicks(), entries, false, true);
         }
     }
 
@@ -137,11 +123,7 @@ public class SpawnTicksConfig {
             List<String> updated = new ArrayList<>(currentEntries.size() + 1);
             updated.addAll(currentEntries);
             updated.add(canonical);
-            cachedBlockFilter = compileBlockFilter(cachedBlockFilter.allowNetherPortalTicks(), updated, false);
-            if (SPEC.isLoaded()) {
-                EXCLUDED_BLOCKS.set(new ArrayList<>(cachedBlockFilter.configuredEntries()));
-                SPEC.save();
-            }
+            applyAndSaveBlockFilterLocked(cachedBlockFilter.allowNetherPortalTicks(), updated, false, true);
         }
 
         ExclusionAddResult.Status status = matchedCount > 0
@@ -176,11 +158,7 @@ public class SpawnTicksConfig {
 
             List<String> updated = new ArrayList<>(currentEntries);
             String removed = updated.remove(matchIndex);
-            cachedBlockFilter = compileBlockFilter(cachedBlockFilter.allowNetherPortalTicks(), updated, false);
-            if (SPEC.isLoaded()) {
-                EXCLUDED_BLOCKS.set(new ArrayList<>(cachedBlockFilter.configuredEntries()));
-                SPEC.save();
-            }
+            applyAndSaveBlockFilterLocked(cachedBlockFilter.allowNetherPortalTicks(), updated, false, true);
             return removed;
         }
     }
@@ -188,17 +166,30 @@ public class SpawnTicksConfig {
     /** Clears all entries from {@code excludedBlocks} and returns the previous entry count. */
     public static int clearExcludedBlocks() {
         synchronized (CONFIG_LOCK) {
-            List<String> currentEntries = cachedBlockFilter.configuredEntries();
-            int count = currentEntries.size();
+            int count = cachedBlockFilter.configuredEntries().size();
             if (count == 0) {
                 return 0;
             }
-            cachedBlockFilter = compileBlockFilter(cachedBlockFilter.allowNetherPortalTicks(), List.of(), false);
-            if (SPEC.isLoaded()) {
-                EXCLUDED_BLOCKS.set(new ArrayList<>());
-                SPEC.save();
-            }
+            applyAndSaveBlockFilterLocked(cachedBlockFilter.allowNetherPortalTicks(), List.of(), false, true);
             return count;
+        }
+    }
+
+    private static void applyAndSaveBlockFilterLocked(
+        boolean allowPortalTicks,
+        @Nullable List<String> entries,
+        boolean persistPortals,
+        boolean persistExcluded
+    ) {
+        cachedBlockFilter = compileBlockFilter(allowPortalTicks, entries, false);
+        if (SPEC.isLoaded()) {
+            if (persistPortals) {
+                ALLOW_UNATTENDED_NETHER_PORTAL_TICKS.set(allowPortalTicks);
+            }
+            if (persistExcluded) {
+                EXCLUDED_BLOCKS.set(new ArrayList<>(cachedBlockFilter.configuredEntries()));
+            }
+            SPEC.save();
         }
     }
 
@@ -242,31 +233,24 @@ public class SpawnTicksConfig {
             return null;
         }
         if (trimmed.startsWith("#")) {
-            String tagRaw = trimmed.substring(1);
-            if (tagRaw.isEmpty() || tagRaw.contains("*")) {
-                return null;
-            }
-            ResourceLocation tagId = ResourceLocation.tryParse(tagRaw);
-            if (tagId == null || tagId.getNamespace().isEmpty() || tagId.getPath().isEmpty()) {
-                return null;
-            }
-            return "#" + tagId;
+            ResourceLocation tagId = tryParseNonEmptyId(trimmed.substring(1));
+            return tagId != null ? "#" + tagId : null;
         }
         if (trimmed.endsWith(":*")) {
             String namespace = trimmed.substring(0, trimmed.length() - 2);
-            if (namespace.isEmpty() || !ResourceLocation.isValidNamespace(namespace)) {
-                return null;
-            }
-            return namespace + ":*";
+            return (!namespace.isEmpty() && ResourceLocation.isValidNamespace(namespace)) ? namespace + ":*" : null;
         }
-        if (trimmed.contains("*")) {
+        ResourceLocation blockId = tryParseNonEmptyId(trimmed);
+        return blockId != null ? blockId.toString() : null;
+    }
+
+    @Nullable
+    private static ResourceLocation tryParseNonEmptyId(String raw) {
+        if (raw.isEmpty() || raw.contains("*")) {
             return null;
         }
-        ResourceLocation blockId = ResourceLocation.tryParse(trimmed);
-        if (blockId == null || blockId.getNamespace().isEmpty() || blockId.getPath().isEmpty()) {
-            return null;
-        }
-        return blockId.toString();
+        ResourceLocation id = ResourceLocation.tryParse(raw);
+        return (id != null && !id.getNamespace().isEmpty() && !id.getPath().isEmpty()) ? id : null;
     }
 
     private static String stripOptionalQuotesAndTrim(@Nullable String raw) {
@@ -326,7 +310,7 @@ public class SpawnTicksConfig {
         }
         if (canonical.endsWith(":*")) {
             String namespace = canonical.substring(0, canonical.length() - 2);
-            int matched = addNamespaceBlocks(namespace, blocks);
+            int matched = collectNamespaceBlocks(namespace, blocks);
             if (matched == 0 && logWarnings) {
                 LOGGER.warn("[SpawnTicks] Excluded namespace wildcard '{}' matched 0 registered blocks.", rawEntry);
             }
@@ -342,11 +326,13 @@ public class SpawnTicksConfig {
         }
     }
 
-    private static int addNamespaceBlocks(String namespace, ReferenceOpenHashSet<Block> outBlocks) {
+    private static int collectNamespaceBlocks(String namespace, @Nullable ReferenceOpenHashSet<Block> outBlocks) {
         int matched = 0;
         for (Map.Entry<ResourceKey<Block>, Block> entry : BuiltInRegistries.BLOCK.entrySet()) {
             if (entry.getKey().location().getNamespace().equals(namespace)) {
-                outBlocks.add(entry.getValue());
+                if (outBlocks != null) {
+                    outBlocks.add(entry.getValue());
+                }
                 matched++;
             }
         }
@@ -359,14 +345,7 @@ public class SpawnTicksConfig {
             return BuiltInRegistries.BLOCK.getTag(tag).map(HolderSet::size).orElse(0);
         }
         if (canonical.endsWith(":*")) {
-            String namespace = canonical.substring(0, canonical.length() - 2);
-            int count = 0;
-            for (ResourceLocation id : BuiltInRegistries.BLOCK.keySet()) {
-                if (id.getNamespace().equals(namespace)) {
-                    count++;
-                }
-            }
-            return count;
+            return collectNamespaceBlocks(canonical.substring(0, canonical.length() - 2), null);
         }
         return BuiltInRegistries.BLOCK.getOptional(ResourceLocation.parse(canonical)).isPresent() ? 1 : 0;
     }

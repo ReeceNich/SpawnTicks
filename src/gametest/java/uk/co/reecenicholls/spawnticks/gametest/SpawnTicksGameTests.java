@@ -87,8 +87,16 @@ public class SpawnTicksGameTests {
         MinecraftServer server = level.getServer();
 
         try (TestScope scope = new TestScope(server, level).saveEnabled()) {
+            String modVersion = SpawnTicksMod.getModVersion();
+            helper.assertTrue(
+                !modVersion.isBlank() && !"unknown".equals(modVersion),
+                "Expected resolved mod version from ModContainer, got: " + modVersion
+            );
             String statusOutput = executeStatusCommand(server);
-            helper.assertTrue(statusOutput.contains("[SpawnTicks] Status:"), "Expected status header in: " + statusOutput);
+            helper.assertTrue(
+                statusOutput.contains("[SpawnTicks v" + modVersion + "] Status:"),
+                "Expected versioned status header in: " + statusOutput
+            );
 
             CommandSourceStack source = server.createCommandSourceStack();
             int disableResult = server.getCommands().getDispatcher().execute("spawnticks disable", source);
@@ -779,7 +787,8 @@ public class SpawnTicksGameTests {
                 "Expected excluded blocks summary in status: " + populatedStatus
             );
 
-            // Verify status notes precedence when portals=allow AND minecraft:nether_portal is excluded.
+            // Verify status notes precedence when portals=allow AND minecraft:nether_portal is explicitly excluded.
+            executeCommand(server, "spawnticks exclude remove minecraft:*", 1);
             executeCommand(server, "spawnticks portals allow", 1);
             executeCommand(server, "spawnticks exclude add minecraft:nether_portal", 1);
             String overrideStatus = executeStatusCommand(server);

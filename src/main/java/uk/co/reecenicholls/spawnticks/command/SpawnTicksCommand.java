@@ -26,6 +26,7 @@ import net.minecraft.world.level.ForcedChunksSavedData;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.common.world.chunk.ForcedChunkManager;
+import uk.co.reecenicholls.spawnticks.SpawnTicksMod;
 import uk.co.reecenicholls.spawnticks.config.SpawnTicksConfig;
 import uk.co.reecenicholls.spawnticks.runtime.SpawnTicksRuntimeState;
 
@@ -77,7 +78,7 @@ public class SpawnTicksCommand {
                     MutableComponent keepAwakeLine = buildKeepAwakeLine(enabled, levelHealthy, spawnRadius);
                     MutableComponent portalStatusLine = buildPortalStatusLine(blockFilter);
 
-                    MutableComponent statusText = Component.literal("[SpawnTicks] Status: ")
+                    MutableComponent statusText = Component.literal("[SpawnTicks v" + SpawnTicksMod.getModVersion() + "] Status: ")
                         .append(statusBadge)
                         .append(Component.literal("\n- Config Enabled: " + enabled))
                         .append(Component.literal("\n- Mixin Hooks: ")).append(hooksLine)

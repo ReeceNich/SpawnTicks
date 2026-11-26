@@ -32,7 +32,7 @@ SpawnTicks hooks into chunk ticking to:
 
 Requires **OP level 2** or server console access:
 
-- `/spawnticks status` — Displays active/conflict status, Mixin hook health, Overworld keep-awake state, unattended Nether Portal policy, active `excludedBlocks` summary, world spawn coordinates and chunk, `spawnChunkRadius`, active entity-ticking spawn area (e.g., `3x3`), vanilla `/forceload` and NeoForge modded forced-chunk counts, and `randomTickSpeed`.
+- `/spawnticks status` — Displays mod version, active/conflict status, Mixin hook health, Overworld keep-awake state, unattended Nether Portal policy, active `excludedBlocks` summary, world spawn coordinates and chunk, `spawnChunkRadius`, active entity-ticking spawn area (e.g., `3x3`), vanilla `/forceload` and NeoForge modded forced-chunk counts, and `randomTickSpeed`.
 - `/spawnticks enable` — Enables unattended random block ticking and saves the setting.
 - `/spawnticks disable` — Disables unattended random block ticking and saves the setting.
 - `/spawnticks portals <allow|block>` — Allows or blocks unattended Nether Portal random ticks (`allowUnattendedNetherPortalTicks`). Blocking prevents Zombified Piglins from accumulating at portals when nobody is in the Overworld.
