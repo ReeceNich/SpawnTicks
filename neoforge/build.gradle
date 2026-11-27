@@ -1,0 +1,105 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev'
+}
+
+def modVersion = providers.gradleProperty('modVersion')
+    .orElse(property('mod_version').toString())
+    .get()
+def minecraftVersion = property('minecraft_version').toString()
+def minecraftVersionRange = property('minecraft_version_range').toString()
+def neoforgeVersion = property('neoforge_version').toString()
+def neoforgeVersionRange = property('neoforge_version_range').toString()
+def jarMcLabel = property('jar_mc_label').toString()
+def is1212Plus = sc.eval(sc.current.version, '>=1.21.2')
+
+def commonProject = project(":common:${sc.current.version}")
+evaluationDependsOn(commonProject.path)
+
+version = modVersion
+group = property('mod_group').toString()
+
+base {
+    archivesName = property('mod_id').toString()
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+sourceSets {
+    gametest {
+        compileClasspath += sourceSets.main.output + commonProject.sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output + commonProject.sourceSets.main.output
+    }
+}
+
+dependencies {
+    compileOnly commonProject
+}
+
+neoForge {
+    version = neoforgeVersion
+
+    addModdingDependenciesTo(sourceSets.gametest)
+
+    mods {
+        spawnticks {
+            sourceSet commonProject.sourceSets.main
+            sourceSet sourceSets.main
+            sourceSet sourceSets.gametest
+        }
+    }
+
+    runs {
+        gameTestServer {
+            type = 'gameTestServer'
+            sourceSet = sourceSets.gametest
+            gameDirectory = project.file('run/gametest')
+            systemProperty 'neoforge.enabledGameTestNamespaces', 'spawnticks'
+        }
+    }
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    def neoforgeMixinsEntry = is1212Plus
+        ? ''
+        : '[[mixins]]\nconfig="spawnticks.neoforge.mixins.json"\n'
+
+    def replaceProperties = [
+        mod_version            : project.version,
+        minecraft_version_range: minecraftVersionRange,
+        neoforge_version_range : neoforgeVersionRange,
+        neoforge_mixins_entry  : neoforgeMixinsEntry
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/neoforge.mods.toml']) {
+        expand replaceProperties
+    }
+
+    if (is1212Plus) {
+        exclude 'spawnticks.neoforge.mixins.json'
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    archiveVersion = "${project.version}+mc${jarMcLabel}-neoforge"
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    dependsOn commonProject.tasks.named('classes')
+    from commonProject.sourceSets.main.output
+}
+
+def collectJar = tasks.register('collectJar', Copy) {
+    dependsOn tasks.named('jar')
+    from tasks.named('jar').flatMap { it.archiveFile }
+    into rootProject.layout.buildDirectory.dir('libs')
+}
+
+tasks.named('build').configure {
+    finalizedBy collectJar
+}
+
+if (tasks.names.contains('createMinecraftArtifacts') && tasks.names.contains('stonecutterGenerate')) {
+    tasks.named('createMinecraftArtifacts').configure {
+        dependsOn('stonecutterGenerate')
+    }
+}

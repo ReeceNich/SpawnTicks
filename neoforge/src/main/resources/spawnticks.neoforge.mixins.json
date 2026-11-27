@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "uk.co.reecenicholls.spawnticks.neoforge.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "uk.co.reecenicholls.spawnticks.runtime.SpawnTicksMixinPlugin",
+  "mixins": [
+    "NeoForgeServerChunkCacheMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

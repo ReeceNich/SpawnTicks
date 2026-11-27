@@ -9,32 +9,46 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  verify-tag:
+    name: Verify Release Tag
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Verify tag matches version.properties
+      - name: Verify tag matches root gradle.properties
         id: version
         shell: bash
         run: |
-          PROP_VERSION="$(grep -E '^mod_version=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')"
-          MC_VERSION="$(grep -E '^minecraft_version=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')"
-          if [ -z "$PROP_VERSION" ] || [ -z "$MC_VERSION" ]; then
-            echo "ERROR: mod_version or minecraft_version missing from version.properties"
+          PROP_VERSION="$(grep -E '^mod_version=' gradle.properties | cut -d'=' -f2 | tr -d '[:space:]')"
+          if [ -z "$PROP_VERSION" ]; then
+            echo "ERROR: mod_version missing from gradle.properties"
             exit 1
           fi
-          EXPECTED_MULTI_TAG="v${PROP_VERSION}+mc${MC_VERSION}"
-          EXPECTED_SIMPLE_TAG="v${PROP_VERSION}"
-          if [ "$GITHUB_REF_NAME" != "$EXPECTED_MULTI_TAG" ] && [ "$GITHUB_REF_NAME" != "$EXPECTED_SIMPLE_TAG" ]; then
-            echo "ERROR: Git tag ($GITHUB_REF_NAME) must match $EXPECTED_MULTI_TAG (or $EXPECTED_SIMPLE_TAG)."
+          EXPECTED_TAG="v${PROP_VERSION}"
+          if [ "$GITHUB_REF_NAME" != "$EXPECTED_TAG" ]; then
+            echo "ERROR: Git tag ($GITHUB_REF_NAME) must match $EXPECTED_TAG."
             exit 1
           fi
           echo "version=$PROP_VERSION" >> "$GITHUB_OUTPUT"
-          echo "mc_version=$MC_VERSION" >> "$GITHUB_OUTPUT"
-          echo "jar_path=build/libs/spawnticks-${PROP_VERSION}+mc${MC_VERSION}.jar" >> "$GITHUB_OUTPUT"
+
+  build-and-test:
+    name: Build & GameTest (${{ matrix.target }})
+    needs: verify-tag
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - 1.21.1-neoforge
+          - 1.21.4-neoforge
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
       - name: Set up Java 21
         uses: actions/setup-java@v5
@@ -45,12 +59,37 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Build and run NeoForge GameTests
-        run: ./gradlew build runGameTestServer --no-daemon
+      - name: Build and run NeoForge GameTests (${{ matrix.target }})
+        run: ./gradlew ":neoforge:${{ matrix.target }}:build" ":neoforge:${{ matrix.target }}:runGameTestServer" --no-daemon
 
-      - name: Extract changelog notes
+      - name: Upload built mod JAR (${{ matrix.target }})
+        uses: actions/upload-artifact@v6
+        with:
+          name: spawnticks-${{ matrix.target }}
+          path: |
+            neoforge/versions/${{ matrix.target }}/build/libs/*.jar
+            !neoforge/versions/${{ matrix.target }}/build/libs/*-sources.jar
+
+  publish:
+    name: Publish GitHub Release & Modrinth
+    needs: [verify-tag, build-and-test]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download built mod JARs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: spawnticks-*
+          path: release-jars
+
+      - name: Extract changelog notes and target metadata
+        id: meta
         shell: bash
         run: |
+          VER="${{ needs.verify-tag.outputs.version }}"
           python3 -c '
           import pathlib, sys
           ver = sys.argv[1]
@@ -66,27 +105,61 @@ jobs:
               if inside:
                   out.append(line)
           pathlib.Path("release_notes.md").write_text("\n".join(out).strip(), encoding="utf-8")
-          ' "${{ steps.version.outputs.version }}"
+          ' "$VER"
+
+          read_prop() {
+            grep -E "^$2=" "$1" | cut -d'=' -f2 | tr -d '[:space:]'
+          }
+
+          LABEL_1211="$(read_prop neoforge/versions/1.21.1-neoforge/gradle.properties jar_mc_label)"
+          VERS_1211="$(read_prop neoforge/versions/1.21.1-neoforge/gradle.properties modrinth_game_versions | tr ',' '\n')"
+          LABEL_1214="$(read_prop neoforge/versions/1.21.4-neoforge/gradle.properties jar_mc_label)"
+          VERS_1214="$(read_prop neoforge/versions/1.21.4-neoforge/gradle.properties modrinth_game_versions | tr ',' '\n')"
+
+          echo "label_1211=$LABEL_1211" >> "$GITHUB_OUTPUT"
+          echo "label_1214=$LABEL_1214" >> "$GITHUB_OUTPUT"
+          {
+            echo "game_versions_1211<<EOF"
+            echo "$VERS_1211"
+            echo "EOF"
+            echo "game_versions_1214<<EOF"
+            echo "$VERS_1214"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          name: "SpawnTicks v${{ steps.version.outputs.version }} (MC ${{ steps.version.outputs.mc_version }})"
+          name: "SpawnTicks v${{ needs.verify-tag.outputs.version }}"
           body_path: release_notes.md
           generate_release_notes: true
           files: |
-            ${{ steps.version.outputs.jar_path }}
+            release-jars/**/*.jar
 
-      - name: Publish to Modrinth
+      - name: Publish 1.21-1.21.1 NeoForge JAR to Modrinth
         uses: Kir-Antipov/mc-publish@v3
         with:
           modrinth-id: ${{ vars.MODRINTH_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           modrinth-featured: true
-          name: "SpawnTicks v${{ steps.version.outputs.version }} (NeoForge ${{ steps.version.outputs.mc_version }})"
-          version: "${{ steps.version.outputs.version }}+mc${{ steps.version.outputs.mc_version }}"
+          name: "SpawnTicks v${{ needs.verify-tag.outputs.version }} (NeoForge ${{ steps.meta.outputs.label_1211 }})"
+          version: "${{ needs.verify-tag.outputs.version }}+mc${{ steps.meta.outputs.label_1211 }}-neoforge"
           version-type: release
           changelog-file: release_notes.md
           loaders: neoforge
-          game-versions: "${{ steps.version.outputs.mc_version }}"
-          files: "${{ steps.version.outputs.jar_path }}"
+          game-versions: ${{ steps.meta.outputs.game_versions_1211 }}
+          files: "release-jars/spawnticks-1.21.1-neoforge/*.jar"
+
+      - name: Publish 1.21.2-1.21.4 NeoForge JAR to Modrinth
+        uses: Kir-Antipov/mc-publish@v3
+        with:
+          modrinth-id: ${{ vars.MODRINTH_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-featured: true
+          name: "SpawnTicks v${{ needs.verify-tag.outputs.version }} (NeoForge ${{ steps.meta.outputs.label_1214 }})"
+          version: "${{ needs.verify-tag.outputs.version }}+mc${{ steps.meta.outputs.label_1214 }}-neoforge"
+          version-type: release
+          changelog-file: release_notes.md
+          loaders: neoforge
+          game-versions: ${{ steps.meta.outputs.game_versions_1214 }}
+          files: "release-jars/spawnticks-1.21.4-neoforge/*.jar"
