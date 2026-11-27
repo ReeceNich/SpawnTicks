@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-27
+
 ### Added
 - Multi-version support covering Minecraft `1.21`–`1.21.4` on NeoForge via two era builds (`spawnticks-<version>+mc1.21-1.21.1-neoforge.jar` for `1.21`–`1.21.1` and `spawnticks-<version>+mc1.21.2-1.21.4-neoforge.jar` for `1.21.2`–`1.21.4`).
 - Loader-agnostic `ServerChunkCacheMixin` (`TAIL` hook on `ServerChunkCache#tickChunks(ProfilerFiller, long, List)` iterating `DistanceManager#getTickingChunks()`) for Minecraft `1.21.2`–`1.21.4`.
