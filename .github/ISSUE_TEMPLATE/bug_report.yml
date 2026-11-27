@@ -22,8 +22,8 @@ body:
     id: versions
     attributes:
       label: SpawnTicks, Minecraft & NeoForge Versions
-      description: "Example: spawnticks-1.0.1+mc1.21.1, Minecraft 1.21.1, NeoForge 21.1.72"
-      placeholder: "spawnticks-1.0.1+mc1.21.1 / MC 1.21.1 / NeoForge 21.1.x"
+      description: "Example: spawnticks-1.2.0+mc1.21-1.21.1-neoforge, Minecraft 1.21.1, NeoForge 21.1.72"
+      placeholder: "spawnticks-1.2.0+mc1.21-1.21.1-neoforge / MC 1.21–1.21.4 / NeoForge 21.x"
     validations:
       required: true
 

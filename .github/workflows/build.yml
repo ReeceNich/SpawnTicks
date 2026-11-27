@@ -4,17 +4,22 @@ on:
   push:
     branches:
       - main
-      - 'mc/**'
       - 'feature/**'
       - 'fix/**'
   pull_request:
     branches:
       - main
-      - 'mc/**'
 
 jobs:
-  build-and-test:
+  build-matrix:
+    name: Build & GameTest (${{ matrix.target }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - 1.21.1-neoforge
+          - 1.21.4-neoforge
 
     steps:
       - name: Checkout repository
@@ -29,13 +34,28 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Build and run NeoForge GameTests
-        run: ./gradlew build runGameTestServer --no-daemon
+      - name: Build and run NeoForge GameTests (${{ matrix.target }})
+        run: ./gradlew ":neoforge:${{ matrix.target }}:build" ":neoforge:${{ matrix.target }}:runGameTestServer" --no-daemon
 
-      - name: Upload built mod JAR
+      - name: Upload built mod JAR (${{ matrix.target }})
         uses: actions/upload-artifact@v6
         with:
-          name: spawnticks-jar
+          name: spawnticks-${{ matrix.target }}
           path: |
-            build/libs/*.jar
-            !build/libs/*-sources.jar
+            neoforge/versions/${{ matrix.target }}/build/libs/*.jar
+            !neoforge/versions/${{ matrix.target }}/build/libs/*-sources.jar
+
+  build-and-test:
+    name: build-and-test
+    needs: build-matrix
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Verify all build-matrix targets succeeded
+        shell: bash
+        run: |
+          if [ "${{ needs.build-matrix.result }}" != "success" ]; then
+            echo "ERROR: build-matrix finished with result=${{ needs.build-matrix.result }}"
+            exit 1
+          fi

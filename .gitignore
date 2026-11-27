@@ -4,12 +4,14 @@ personal_docs/
 # Gradle & build artifacts
 .gradle/
 build/
+**/build/
 out/
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
 
 # Minecraft runtime & logs
 run/
+**/run/
 logs/
 crash-reports/
 *.log

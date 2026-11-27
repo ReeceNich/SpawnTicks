@@ -1,0 +1,52 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev'
+}
+
+def modVersion = providers.gradleProperty('modVersion')
+    .orElse(property('mod_version').toString())
+    .get()
+
+version = modVersion
+group = property('mod_group').toString()
+
+base {
+    archivesName = "${property('mod_id')}-common"
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.neoforged.net/releases' }
+    maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+}
+
+neoForge {
+    neoFormVersion = property('neoform_version').toString()
+}
+
+dependencies {
+    compileOnly 'org.spongepowered:mixin:0.8.5'
+    compileOnly 'org.ow2.asm:asm-tree:9.6'
+    compileOnly 'io.github.llamalad7:mixinextras-common:0.5.3'
+    compileOnly 'org.jetbrains:annotations:24.1.0'
+}
+
+def is1212Plus = sc.eval(sc.current.version, '>=1.21.2')
+def commonMixins = is1212Plus
+    ? '"ChunkMapAccessor",\n    "DistanceManagerAccessor",\n    "ServerChunkCacheMixin",\n    "ServerLevelMixin"'
+    : '"ChunkMapAccessor",\n    "ServerLevelMixin"'
+
+tasks.named('processResources', ProcessResources).configure {
+    inputs.property('common_mixins', commonMixins)
+    filesMatching('spawnticks.mixins.json') {
+        expand([common_mixins: commonMixins])
+    }
+}
+
+if (tasks.names.contains('createMinecraftArtifacts') && tasks.names.contains('stonecutterGenerate')) {
+    tasks.named('createMinecraftArtifacts').configure {
+        dependsOn('stonecutterGenerate')
+    }
+}
