@@ -1,5 +1,12 @@
 # SpawnTicks
 
+[![Build](https://github.com/ReeceNich/SpawnTicks/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/ReeceNich/SpawnTicks/actions/workflows/build.yml)
+[![Modrinth Downloads](https://img.shields.io/modrinth/dt/spawnticks?logo=modrinth&label=Modrinth)](https://modrinth.com/mod/spawnticks)
+[![Modrinth Version](https://img.shields.io/modrinth/v/spawnticks?logo=modrinth)](https://modrinth.com/mod/spawnticks/versions)
+[![Minecraft Versions](https://img.shields.io/modrinth/game-versions/spawnticks)](https://modrinth.com/mod/spawnticks/versions)
+[![GitHub Release](https://img.shields.io/github/v/release/ReeceNich/SpawnTicks)](https://github.com/ReeceNich/SpawnTicks/releases)
+[![License](https://img.shields.io/github/license/ReeceNich/SpawnTicks)](LICENSE)
+
 **Server-side-only NeoForge mod for Minecraft `1.21`–`1.21.4`** that backports Minecraft 1.21.5's unattended random block & fluid ticking to entity-ticking chunks—so crops, sugar cane, dripstone, and other random-tick mechanics keep growing 24/7 in spawn chunks and `/forceload` chunks even when zero players are online or nearby.
 
 ---
@@ -58,7 +65,7 @@ excludedBlocks = []
 
 ## Installation
 
-1. Download the JAR matching your server's Minecraft version from [Releases](https://github.com/ReeceNich/SpawnTicks/releases) and place it in your **NeoForge server's `mods/` folder**:
+1. Download the JAR matching your server's Minecraft version from [Modrinth](https://modrinth.com/mod/spawnticks) (or [GitHub Releases](https://github.com/ReeceNich/SpawnTicks/releases)) and place it in your **NeoForge server's `mods/` folder**:
    - **MC `1.21` / `1.21.1`**: `spawnticks-<version>+mc1.21-1.21.1-neoforge.jar`
    - **MC `1.21.2` / `1.21.3` / `1.21.4`**: `spawnticks-<version>+mc1.21.2-1.21.4-neoforge.jar`
 2. Restart the server (no client installation required).
@@ -111,6 +118,7 @@ SpawnTicks is a solo hobby project built and shared for the community. To keep m
 
 ## Links & License
 
+- **Modrinth**: [modrinth.com/mod/spawnticks](https://modrinth.com/mod/spawnticks)
 - **Source Code**: [github.com/ReeceNich/SpawnTicks](https://github.com/ReeceNich/SpawnTicks)
 - **Bug Reports & Issues**: [github.com/ReeceNich/SpawnTicks/issues](https://github.com/ReeceNich/SpawnTicks/issues)
 - **License**: MIT
